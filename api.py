@@ -52,26 +52,15 @@ async def get_week_schedule(group_id: int) -> list[DaySchedule]:
     tz = ZoneInfo(TIMEZONE)
     today = datetime.now(tz)
     monday = today - timedelta(days=today.weekday())
-    results: list[DaySchedule] = []
-
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        for day_offset in range(6):
-            day = monday + timedelta(days=day_offset)
-            date_str = day.strftime("%Y-%m-%d")
-            try:
-                data = await get_schedule(group_id, date_str, client=client)
-                lessons = data[0].get("lessons", []) if data else []
-                if not isinstance(lessons, list):
-                    lessons = []
-                results.append(DaySchedule(day=day, lessons=lessons))
-            except Exception:
-                results.append(
-                    DaySchedule(
-                        day=day,
-                        lessons=[],
-                        error="Не удалось загрузить расписание",
-                    )
-                )
+    results = []
+    for i in range(6):  # пн–сб
+        day = monday + timedelta(days=i)
+        date_str = day.strftime("%d-%m-%Y")
+        try:
+            data = get_schedule(group_id, date_str)
+            results.append((day, data))
+        except Exception:
+            results.append((day, []))
     return results
 
 
@@ -83,7 +72,7 @@ def format_day(lessons: list[dict[str, Any]], dt: datetime, error: str | None = 
     if error:
         return f"{header}\n {escape(error)}"
     if not lessons:
-        return f"{header}\n Пар нет"
+        return f"📅 *{weekday}, {date_formatted}*\n Пар нет\n"
 
     lines = [header]
     sorted_lessons = sorted(lessons, key=lambda item: item.get("order", 0))
@@ -100,7 +89,7 @@ def format_day(lessons: list[dict[str, Any]], dt: datetime, error: str | None = 
         if begins and ends:
             lesson_line += f" <code>{escape(begins)}-{escape(ends)}</code>"
         if teacher:
-            lesson_line += f"\n    👤 {teacher}"
+            line += f"\n     {teacher}"
         if room:
             lesson_line += f"  🚪 {room}"
         lines.append(lesson_line)
@@ -108,11 +97,11 @@ def format_day(lessons: list[dict[str, Any]], dt: datetime, error: str | None = 
     return "\n".join(lines)
 
 
-async def format_tomorrow(group_id: int) -> str:
-    tz = ZoneInfo(TIMEZONE)
-    tomorrow = datetime.now(tz) + timedelta(days=1)
-    date_str = tomorrow.strftime("%Y-%m-%d")
-    data = await get_schedule(group_id, date_str)
+def format_tomorrow(group_id: int) -> str:
+    """Форматировать расписание на завтра"""
+    tomorrow = datetime.now() + timedelta(days=1)
+    date_str = tomorrow.strftime("%d-%m-%Y")
+    data = get_schedule(group_id, date_str)
     lessons = data[0].get("lessons", []) if data else []
     if not isinstance(lessons, list):
         lessons = []

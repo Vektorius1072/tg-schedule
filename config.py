@@ -1,12 +1,12 @@
 import json
 import os
 
+# ─── ТОКЕН БОТА ───────────────────────────────────────────────────────────────
+BOT_TOKEN = os.getenv["BOT_TOKEN"]
 
-def _get_required_env(name: str) -> str:
-    value = os.getenv(name)
-    if value is None or value.strip() == "":
-        raise RuntimeError(f"Environment variable {name} is required")
-    return value
+# ─── TELEGRAM CHAT ID ГРУППЫ (куда слать автоматически) ──────────────────────
+# Узнать можно добавив @userinfobot в группу и написав /start
+GROUP_CHAT_ID = int(os.getenv["GROUP_CHAT_ID"])
 
 
 def _get_int_env(name: str, default: int | None = None) -> int:
@@ -21,14 +21,11 @@ def _get_int_env(name: str, default: int | None = None) -> int:
         raise RuntimeError(f"Environment variable {name} must be an integer") from exc
 
 
-def _get_str_env(name: str, default: str | None = None) -> str | None:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    value = raw.strip()
-    if value == "":
-        return default
-    return value
+# ─── ВРЕМЯ АВТОРАССЫЛКИ ───────────────────────────────────────────────────────
+# Каждый день кроме субботы в 20:00 МСК
+SEND_HOUR = 18
+SEND_MINUTE = 0
+TIMEZONE = "Europe/Moscow"
 
 
 def _get_groups() -> dict[str, int]:
