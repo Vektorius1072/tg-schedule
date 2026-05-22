@@ -1,79 +1,124 @@
-import requests
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from config import API_BASE_URL, WEEKDAY_RU
+from html import escape
+from typing import Any
+from zoneinfo import ZoneInfo
+
+import httpx
+
+from config import API_BASE_URL, TIMEZONE, WEEKDAY_RU
+
+REQUEST_TIMEOUT = 10.0
 
 
-def get_schedule(group_id: int, date: str) -> list[dict]:
-    """Получить расписание для группы на дату (формат: YYYY-MM-DD)"""
+@dataclass
+class DaySchedule:
+    day: datetime
+    lessons: list[dict[str, Any]]
+    error: str | None = None
+
+
+async def get_schedule(
+    group_id: int,
+    date: str,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
     url = f"{API_BASE_URL}/groups/{group_id}/schedules"
-    resp = requests.get(url, params={"date": date}, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
+    own_client = client is None
+    if own_client:
+        client = httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
+
+    assert client is not None
+    try:
+        for attempt in range(2):
+            try:
+                response = await client.get(url, params={"date": date})
+                response.raise_for_status()
+                payload = response.json()
+                if not isinstance(payload, list):
+                    raise ValueError("Unexpected API payload type")
+                return payload
+            except (httpx.TimeoutException, httpx.NetworkError):
+                if attempt == 1:
+                    raise
+    finally:
+        if own_client:
+            await client.aclose()
+
+    raise RuntimeError("unreachable")
 
 
-def get_week_schedule(group_id: int) -> list[dict]:
-    """Получить расписание на текущую неделю (пн–сб)"""
-    today = datetime.now()
-    # Начало текущей недели (понедельник)
+async def get_week_schedule(group_id: int) -> list[DaySchedule]:
+    tz = ZoneInfo(TIMEZONE)
+    today = datetime.now(tz)
     monday = today - timedelta(days=today.weekday())
-    results = []
-    for i in range(6):  # пн–сб
-        day = monday + timedelta(days=i)
-        date_str = day.strftime("%Y-%m-%d")
-        try:
-            data = get_schedule(group_id, date_str)
-            results.append((day, data))
-        except Exception:
-            results.append((day, []))
+    results: list[DaySchedule] = []
+
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+        for day_offset in range(6):
+            day = monday + timedelta(days=day_offset)
+            date_str = day.strftime("%Y-%m-%d")
+            try:
+                data = await get_schedule(group_id, date_str, client=client)
+                lessons = data[0].get("lessons", []) if data else []
+                if not isinstance(lessons, list):
+                    lessons = []
+                results.append(DaySchedule(day=day, lessons=lessons))
+            except Exception:
+                results.append(
+                    DaySchedule(
+                        day=day,
+                        lessons=[],
+                        error="Не удалось загрузить расписание",
+                    )
+                )
     return results
 
 
-def format_day(lessons: list[dict], dt: datetime) -> str:
-    """Форматировать один день расписания"""
+def format_day(lessons: list[dict[str, Any]], dt: datetime, error: str | None = None) -> str:
     weekday = WEEKDAY_RU[dt.weekday()]
     date_formatted = dt.strftime("%d.%m.%Y")
+    header = f" <b>{escape(weekday)}, {date_formatted}</b>"
 
+    if error:
+        return f"{header}\n {escape(error)}"
     if not lessons:
-        return f"📅 *{weekday}, {date_formatted}*\n😴 Пар нет\n"
+        return f"{header}\n Пар нет"
 
-    lines = [f"📅 *{weekday}, {date_formatted}*"]
-    sorted_lessons = sorted(lessons, key=lambda x: x.get("order", 0))
+    lines = [header]
+    sorted_lessons = sorted(lessons, key=lambda item: item.get("order", 0))
 
     for lesson in sorted_lessons:
-        order   = lesson.get("order", "?")
-        subject = lesson.get("title", "Предмет не указан")
-        teacher = lesson.get("teacher", "")
-        room    = lesson.get("cabinet", "")
-        begins  = lesson.get("startTime", "")[:5]
-        ends    = lesson.get("endTime", "")[:5]
+        order = escape(str(lesson.get("order", "?")))
+        subject = escape(str(lesson.get("title", "Предмет не указан")))
+        teacher = escape(str(lesson.get("teacher", "")))
+        room = escape(str(lesson.get("cabinet", "")))
+        begins = str(lesson.get("startTime", ""))[:5]
+        ends = str(lesson.get("endTime", ""))[:5]
 
-        time_str = f"`{begins}–{ends}`" if begins and ends else ""
-        line = f"*{order}.* {subject}"
-        if time_str:
-            line += f"  {time_str}"
+        lesson_line = f"<b>{order}.</b> {subject}"
+        if begins and ends:
+            lesson_line += f" <code>{escape(begins)}-{escape(ends)}</code>"
         if teacher:
-            line += f"\n    👤 {teacher}"
+            lesson_line += f"\n    👤 {teacher}"
         if room:
-            line += f"  🚪 {room}"
-        lines.append(line)
+            lesson_line += f"  🚪 {room}"
+        lines.append(lesson_line)
 
     return "\n".join(lines)
 
 
-def format_tomorrow(group_id: int) -> str:
-    """Форматировать расписание на завтра"""
-    tomorrow = datetime.now() + timedelta(days=1)
+async def format_tomorrow(group_id: int) -> str:
+    tz = ZoneInfo(TIMEZONE)
+    tomorrow = datetime.now(tz) + timedelta(days=1)
     date_str = tomorrow.strftime("%Y-%m-%d")
-    data = get_schedule(group_id, date_str)
+    data = await get_schedule(group_id, date_str)
     lessons = data[0].get("lessons", []) if data else []
+    if not isinstance(lessons, list):
+        lessons = []
     return format_day(lessons, tomorrow)
 
 
-def format_week(group_id: int) -> str:
-    """Форматировать расписание на неделю"""
-    week = get_week_schedule(group_id)
-    parts = []
-    for dt, data in week:
-        lessons = data[0].get("lessons", []) if data else []
-        parts.append(format_day(lessons, dt))
-    return "\n\n".join(parts)
+async def format_week(group_id: int) -> str:
+    week = await get_week_schedule(group_id)
+    return "\n\n".join(format_day(item.lessons, item.day, item.error) for item in week)
