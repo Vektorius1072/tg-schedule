@@ -57,7 +57,7 @@ async def get_week_schedule(group_id: int) -> list[DaySchedule]:
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
         for day_offset in range(6):
             day = monday + timedelta(days=day_offset)
-            date_str = day.strftime("%Y-%m-%d")
+            date_str = day.strftime("%d-%m-%Y")
             try:
                 data = await get_schedule(group_id, date_str, client=client)
                 lessons = data[0].get("lessons", []) if data else []
@@ -111,7 +111,7 @@ def format_day(lessons: list[dict[str, Any]], dt: datetime, error: str | None = 
 async def format_tomorrow(group_id: int) -> str:
     tz = ZoneInfo(TIMEZONE)
     tomorrow = datetime.now(tz) + timedelta(days=1)
-    date_str = tomorrow.strftime("%Y-%m-%d")
+    date_str = tomorrow.strftime("%d-%m-%Y")
     data = await get_schedule(group_id, date_str)
     lessons = data[0].get("lessons", []) if data else []
     if not isinstance(lessons, list):
