@@ -19,7 +19,7 @@ def get_week_schedule(group_id: int) -> list[dict]:
     results = []
     for i in range(6):  # пн–сб
         day = monday + timedelta(days=i)
-        date_str = day.strftime("%Y-%m-%d")
+        date_str = day.strftime("%d-%m-%Y")
         try:
             data = get_schedule(group_id, date_str)
             results.append((day, data))
@@ -34,7 +34,7 @@ def format_day(lessons: list[dict], dt: datetime) -> str:
     date_formatted = dt.strftime("%d.%m.%Y")
 
     if not lessons:
-        return f"📅 *{weekday}, {date_formatted}*\n😴 Пар нет\n"
+        return f"📅 *{weekday}, {date_formatted}*\n Пар нет\n"
 
     lines = [f"📅 *{weekday}, {date_formatted}*"]
     sorted_lessons = sorted(lessons, key=lambda x: x.get("order", 0))
@@ -52,7 +52,7 @@ def format_day(lessons: list[dict], dt: datetime) -> str:
         if time_str:
             line += f"  {time_str}"
         if teacher:
-            line += f"\n    👤 {teacher}"
+            line += f"\n     {teacher}"
         if room:
             line += f"  🚪 {room}"
         lines.append(line)
@@ -63,7 +63,7 @@ def format_day(lessons: list[dict], dt: datetime) -> str:
 def format_tomorrow(group_id: int) -> str:
     """Форматировать расписание на завтра"""
     tomorrow = datetime.now() + timedelta(days=1)
-    date_str = tomorrow.strftime("%Y-%m-%d")
+    date_str = tomorrow.strftime("%d-%m-%Y")
     data = get_schedule(group_id, date_str)
     lessons = data[0].get("lessons", []) if data else []
     return format_day(lessons, tomorrow)

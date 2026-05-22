@@ -1,11 +1,11 @@
 import os
 
 # ─── ТОКЕН БОТА ───────────────────────────────────────────────────────────────
-BOT_TOKEN = os.environ["BOT_TOKEN"]
+BOT_TOKEN = os.getenv["BOT_TOKEN"]
 
 # ─── TELEGRAM CHAT ID ГРУППЫ (куда слать автоматически) ──────────────────────
 # Узнать можно добавив @userinfobot в группу и написав /start
-GROUP_CHAT_ID = int(os.environ["GROUP_CHAT_ID"])
+GROUP_CHAT_ID = int(os.getenv["GROUP_CHAT_ID"])
 
 # ─── API ──────────────────────────────────────────────────────────────────────
 API_BASE_URL = "https://api.thisishyum.ru/schedule_api/tyumen"
@@ -22,7 +22,7 @@ DEFAULT_GROUP_NAME = "ИС-25-3С"
 
 # ─── ВРЕМЯ АВТОРАССЫЛКИ ───────────────────────────────────────────────────────
 # Каждый день кроме субботы в 20:00 МСК
-SEND_HOUR = 20
+SEND_HOUR = 18
 SEND_MINUTE = 0
 TIMEZONE = "Europe/Moscow"
 
