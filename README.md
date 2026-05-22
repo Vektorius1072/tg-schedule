@@ -7,7 +7,7 @@ Telegram bot for university schedule:
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.10+ (recommended 3.12 for this repo)
 - Telegram bot token
 - Group chat ID for autosend
 
