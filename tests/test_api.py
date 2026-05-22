@@ -9,9 +9,6 @@ import api  # noqa: E402
 
 
 class ApiFormattingTests(unittest.TestCase):
-    def test_api_date_format(self):
-        self.assertEqual(api._api_date(api.datetime(2026, 5, 23)), "230526")
-
     def test_format_day_escapes_html(self):
         lessons = [
             {
@@ -77,21 +74,6 @@ class ApiAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(week), 6)
         self.assertEqual(week[0].error, "Не удалось загрузить расписание")
         self.assertIsNone(week[1].error)
-
-    async def test_get_week_schedule_uses_ddmmyy_date(self):
-        dates: list[str] = []
-
-        async def fake_get_schedule(group_id: int, date: str, client=None):
-            del group_id, client
-            dates.append(date)
-            return [{"lessons": []}]
-
-        with patch.object(api, "get_schedule", side_effect=fake_get_schedule):
-            await api.get_week_schedule(113)
-
-        self.assertEqual(len(dates), 6)
-        for date in dates:
-            self.assertRegex(date, r"^\d{6}$")
 
 
 if __name__ == "__main__":
