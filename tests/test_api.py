@@ -28,7 +28,7 @@ class ApiFormattingTests(unittest.TestCase):
 
     def test_format_day_with_error(self):
         text = api.format_day([], api.datetime(2026, 5, 25), error="Network down")
-        self.assertIn("⚠️", text)
+        self.assertIn("понедельник 25.05.2026:", text)
         self.assertIn("Network down", text)
 
 
@@ -56,7 +56,10 @@ class ApiAsyncTests(unittest.IsolatedAsyncioTestCase):
         ):
             text = await api.format_tomorrow(113)
         self.assertIn("Math", text)
+        self.assertIn("<blockquote>", text)
         self.assertIn("10:15-11:45", text)
+        self.assertIn("Пары начинаются в <u>10:15</u>", text)
+        self.assertIn("Пары заканчиваются в <u>11:45</u>", text)
 
     async def test_get_week_schedule_marks_failed_day(self):
         call_state = {"idx": 0}

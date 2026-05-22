@@ -150,7 +150,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _get_tomorrow_text(group_id: int, group_name: str) -> str:
     try:
-        return f"<b>Группа {escape(group_name)}</b>\n\n" + await format_tomorrow(group_id)
+        del group_name
+        return await format_tomorrow(group_id)
     except Exception:
         logger.exception("Failed to get tomorrow schedule")
         return "Не удалось получить расписание. Попробуй позже."
