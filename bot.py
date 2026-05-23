@@ -284,7 +284,7 @@ def main():
     scheduler.add_job(
     ping_server,
     "interval",
-    seconds=10,
+    seconds=1000,
     args=[app],
     )
     scheduler.start()
