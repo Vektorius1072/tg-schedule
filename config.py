@@ -54,7 +54,15 @@ def _get_groups() -> dict[str, int]:
 
     return normalized
 
+def _get_required_env_list(name: str) -> list[int]:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        raise RuntimeError(f"Environment variable {name} is required")
+    return [int(x.strip()) for x in value.split(",")]
 
+#############  Получаем из окружения сами перемннные
+
+ADMIN_IDS = _get_required_env_list("ADMIN_IDS")
 BOT_TOKEN = _get_required_env("BOT_TOKEN")
 GROUP_CHAT_ID = _get_int_env("GROUP_CHAT_ID")
 

@@ -4,6 +4,8 @@ import logging
 from datetime import datetime
 from html import escape
 from zoneinfo import ZoneInfo
+import requests
+
 
 from aiohttp import ClientSession, ClientTimeout, web
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -30,6 +32,7 @@ from config import (
     SELF_PING_INTERVAL_SECONDS,
     SELF_PING_START_DELAY_SECONDS,
     TIMEZONE,
+    ADMIN_IDS,
 )
 
 logging.basicConfig(
@@ -241,6 +244,23 @@ async def _post_shutdown(app: Application):
         logger.info("Keepalive web server stopped")
 
 
+### Пингуем апи, если не доступен оповещаем админов бота
+async def ping_server(app: Application):
+    try:
+        resp = requests.get("https://твой-сервер.com", timeout=5)
+        logger.info(f"Ping OK: {resp.status_code}")
+    except Exception as e:
+        # Уведомляем всех админов
+        for admin_id in ADMIN_IDS:
+            try:
+                await app.bot.send_message(
+                    chat_id=admin_id,
+                    text=f"⚠️ Сервер недоступен!\n\n`{e}`",
+                    parse_mode="Markdown"
+                )
+            except Exception:
+                pass  # если не смогли уведомить — не страшно
+
 def main():
     app = (
         Application.builder()
@@ -261,10 +281,18 @@ def main():
         CronTrigger(hour=SEND_HOUR, minute=SEND_MINUTE, timezone=TIMEZONE),
         args=[app],
     )
+    scheduler.add_job(
+    ping_server,
+    "interval",
+    seconds=10,
+    args=[app],
+    )
     scheduler.start()
 
     logger.info("Bot started")
     app.run_polling()
+
+
 
 
 if __name__ == "__main__":
