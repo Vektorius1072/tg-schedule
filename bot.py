@@ -247,7 +247,7 @@ async def _post_shutdown(app: Application):
 ### Пингуем апи, если не доступен оповещаем админов бота
 async def ping_server(app: Application):
     try:
-        resp = requests.get("https://твой-сервер.com", timeout=5)
+        resp = requests.get("https://api.thisishyum.ru/schedule_api/tyumen/groups/113/schedules?date=23-05-2026", timeout=5)
         logger.info(f"Ping OK: {resp.status_code}")
     except Exception as e:
         # Уведомляем всех админов
