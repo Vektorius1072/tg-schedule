@@ -94,10 +94,10 @@ if not (0 <= SEND_MINUTE <= 59):
     raise RuntimeError("SEND_MINUTE must be between 0 and 59")
 if PORT <= 0:
     raise RuntimeError("PORT must be positive")
-if SELF_PING_INTERVAL_SECONDS < 60:
-    raise RuntimeError("SELF_PING_INTERVAL_SECONDS must be at least 60")
-if SELF_PING_START_DELAY_SECONDS < 0:
-    raise RuntimeError("SELF_PING_START_DELAY_SECONDS must be >= 0")
+# if SELF_PING_INTERVAL_SECONDS < 60:
+#     raise RuntimeError("SELF_PING_INTERVAL_SECONDS must be at least 60")
+# if SELF_PING_START_DELAY_SECONDS < 0:
+#     raise RuntimeError("SELF_PING_START_DELAY_SECONDS must be >= 0")
 
 WEEKDAY_RU = [
     "Понедельник",
