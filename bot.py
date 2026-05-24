@@ -247,7 +247,7 @@ async def _post_shutdown(app: Application):
 ### Пингуем апи, если не доступен оповещаем админов бота
 async def ping_server(app: Application):
     try:
-        resp = requests.get("8.8.8.8", timeout=5)
+        resp = requests.get("google.com", timeout=5)
         logger.info(f"Ping OK: {resp.status_code}")
     except Exception as e:
         # Уведомляем всех админов
