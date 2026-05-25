@@ -118,6 +118,18 @@ def format_day(lessons: list[dict[str, Any]], dt: datetime, error: str | None = 
     return "\n\n".join(lines)
 
 
+async def format_today(group_id: int) -> str:
+    tz = ZoneInfo(TIMEZONE)
+    today = datetime.now(tz)
+    date_str = today.strftime("%Y-%m-%d")
+    data = await get_schedule(group_id, date_str)
+    lessons = data[0].get("lessons", []) if data else []
+    if not isinstance(lessons, list):
+        lessons = []
+    return format_day(lessons, today)
+
+
+
 async def format_tomorrow(group_id: int) -> str:
     tz = ZoneInfo(TIMEZONE)
     tomorrow = datetime.now(tz) + timedelta(days=1)
