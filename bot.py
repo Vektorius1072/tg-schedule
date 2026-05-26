@@ -90,6 +90,18 @@ async def cmd_tomorrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Выбери группу:", reply_markup=groups_keyboard("tomorrow"))
 
 
+async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    del context
+    if update.message is None:
+        return
+
+    if len(GROUPS) == 1:
+        await _send_today(update.message, DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
+        return
+
+    await update.message.reply_text("Выбери группу:", reply_markup=groups_keyboard("today"))
+
+
 async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context
     if update.message is None:
@@ -100,7 +112,6 @@ async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text("Выбери группу:", reply_markup=groups_keyboard("week"))
-
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context
@@ -273,6 +284,7 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("tomorrow", cmd_tomorrow))
     app.add_handler(CommandHandler("week", cmd_week))
+    app.add_handler(CommandHandler("today", cmd_today))
     app.add_handler(CallbackQueryHandler(handle_callback))
 
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
