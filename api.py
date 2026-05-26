@@ -143,4 +143,4 @@ async def format_tomorrow(group_id: int) -> str:
 
 async def format_week(group_id: int) -> str:
     week = await get_week_schedule(group_id)
-    return "\n\n".join(format_day(item.lessons, item.day, item.error) for item in week)
+    return "\n-----\n".join(format_day(item.lessons, item.day, item.error) for item in week)
