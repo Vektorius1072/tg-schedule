@@ -30,7 +30,7 @@ from config import (
     BOT_TOKEN,
     DEFAULT_GROUP_ID,
     DEFAULT_GROUP_NAME,
-    GROUP_CHAT_ID,
+    GROUP_CHAT_IDS,
     GROUPS,
     PORT,
     SEND_HOUR,
