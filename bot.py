@@ -49,6 +49,9 @@ SELF_PING_TASK_KEY = "self_ping_task"
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
+            InlineKeyboardButton("Расписание на завтра", callback_data="menu_today"),
+        ]
+        [
             InlineKeyboardButton("Расписание на завтра", callback_data="menu_tomorrow"),
             InlineKeyboardButton("Расписание на неделю", callback_data="menu_week"),
         ]
@@ -130,6 +133,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "menu_tomorrow":
         if len(GROUPS) == 1:
             text = await _get_tomorrow_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
+            await query.edit_message_text(text, parse_mode="HTML")
+            return
+        await query.edit_message_text("Выбери группу:", reply_markup=groups_keyboard("tomorrow"))
+        return
+
+    if data == "menu_today":
+        if len(GROUPS) == 1:
+            text = await _get_today_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
             await query.edit_message_text(text, parse_mode="HTML")
             return
         await query.edit_message_text("Выбери группу:", reply_markup=groups_keyboard("tomorrow"))
