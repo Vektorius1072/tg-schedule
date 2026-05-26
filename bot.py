@@ -18,7 +18,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from api import format_tomorrow, format_week
+from api import format_tomorrow, format_week, format_tomorrow, format_today, format_week
 from config import (
     APP_URL,
     BOT_TOKEN,
@@ -33,6 +33,7 @@ from config import (
     SELF_PING_START_DELAY_SECONDS,
     TIMEZONE,
     ADMIN_IDS,
+    
 )
 
 logging.basicConfig(
@@ -113,7 +114,7 @@ async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Выбери группу:", reply_markup=groups_keyboard("week"))
 
-async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE): 
     del context
     query = update.callback_query
     if query is None:
@@ -162,6 +163,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text, parse_mode="HTML")
 
 
+
+########### методы получения текста
 async def _get_tomorrow_text(group_id: int, group_name: str) -> str:
     try:
         del group_name
@@ -179,10 +182,23 @@ async def _get_week_text(group_id: int, group_name: str) -> str:
         return "Не удалось получить расписание. Попробуй позже."
 
 
+async def _get_today_text(group_id: int, group_name: str) -> str:
+    try:
+        del group_name
+        return await format_today(group_id)
+    except Exception:
+        logger.exception("Failed to get today schedule")
+        return "Не удалось получить расписание. Попробуй позже."
+
+
+####### методы отправки
 async def _send_tomorrow(message: Message, group_id: int, group_name: str):
     text = await _get_tomorrow_text(group_id, group_name)
     await message.reply_text(text, parse_mode="HTML")
 
+async def _send_today(message: Message, group_id: int, group_name: str):
+    text = await _get_today_text(group_id, group_name)
+    await message.reply_text(text, parse_mode="HTML")
 
 async def _send_week(message: Message, group_id: int, group_name: str):
     text = await _get_week_text(group_id, group_name)
