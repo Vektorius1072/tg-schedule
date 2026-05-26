@@ -73,7 +73,7 @@ MAIN_ADMIN_ID = ADMIN_IDS[0]
 SCHEDULE_NOTIFY_ADMIN_ID = ADMIN_IDS[1] if len(ADMIN_IDS) > 1 else ADMIN_IDS[0]
 
 BOT_TOKEN = _get_required_env("BOT_TOKEN")
-GROUP_CHAT_ID = _get_int_env("GROUP_CHAT_ID")
+# GROUP_CHAT_ID = _get_int_env("GROUP_CHAT_ID")
 GROUP_CHAT_IDS = [int(x.strip()) for x in os.environ["GROUP_CHAT_IDS"].split(",")]
 
 API_BASE_URL = os.getenv(
