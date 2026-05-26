@@ -50,7 +50,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton("Расписание на завтра", callback_data="menu_today")
-        ]
+        ],
         [
             InlineKeyboardButton("Расписание на завтра", callback_data="menu_tomorrow"),
             InlineKeyboardButton("Расписание на неделю", callback_data="menu_week"),
