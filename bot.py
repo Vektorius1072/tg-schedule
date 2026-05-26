@@ -49,7 +49,7 @@ SELF_PING_TASK_KEY = "self_ping_task"
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("Расписание на завтра", callback_data="menu_today"),
+            InlineKeyboardButton("Расписание на завтра", callback_data="menu_today")
         ]
         [
             InlineKeyboardButton("Расписание на завтра", callback_data="menu_tomorrow"),
