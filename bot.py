@@ -49,7 +49,7 @@ SELF_PING_TASK_KEY = "self_ping_task"
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("Расписание на завтра", callback_data="menu_today")
+            InlineKeyboardButton("Расписание на сегодня", callback_data="menu_today")
         ],
         [
             InlineKeyboardButton("Расписание на завтра", callback_data="menu_tomorrow"),
@@ -71,6 +71,11 @@ def _lookup_group_name(group_id: int) -> str | None:
             return name
     return None
 
+
+def back_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Назад", callback_data="menu_back")]
+    ])
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context
@@ -133,7 +138,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "menu_tomorrow":
         if len(GROUPS) == 1:
             text = await _get_tomorrow_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
-            await query.edit_message_text(text, parse_mode="HTML")
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_keyboard())
             return
         await query.edit_message_text("Выбери группу:", reply_markup=groups_keyboard("tomorrow"))
         return
@@ -141,7 +146,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "menu_today":
         if len(GROUPS) == 1:
             text = await _get_today_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
-            await query.edit_message_text(text, parse_mode="HTML")
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_keyboard())
             return
         await query.edit_message_text("Выбери группу:", reply_markup=groups_keyboard("tomorrow"))
         return
@@ -149,7 +154,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "menu_week":
         if len(GROUPS) == 1:
             text = await _get_week_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
-            await query.edit_message_text(text, parse_mode="HTML")
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_keyboard())
             return
         await query.edit_message_text("Выбери группу:", reply_markup=groups_keyboard("week"))
         return
