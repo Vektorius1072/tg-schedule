@@ -18,7 +18,13 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from api import format_tomorrow, format_week, format_tomorrow, format_today, format_week
+from api import (
+    format_tomorrow,
+    format_week,
+    format_today,
+    format_next_week,
+    check_next_week_available,
+)
 from config import (
     APP_URL,
     BOT_TOKEN,
@@ -33,7 +39,8 @@ from config import (
     SELF_PING_START_DELAY_SECONDS,
     TIMEZONE,
     ADMIN_IDS,
-    
+    MAIN_ADMIN_ID,
+    SCHEDULE_NOTIFY_ADMIN_ID,
 )
 
 logging.basicConfig(
@@ -45,6 +52,12 @@ logger = logging.getLogger(__name__)
 WEB_RUNNER_KEY = "web_runner"
 SELF_PING_TASK_KEY = "self_ping_task"
 
+# Флаг: было ли уже отправлено уведомление о расписании на следующую неделю
+# Сбрасывается каждое воскресенье, проверяется с четверга
+_next_week_notified: bool = False
+
+
+# ─── КЛАВИАТУРЫ ───────────────────────────────────────────────────────────────
 
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
@@ -54,7 +67,10 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton("Расписание на завтра", callback_data="menu_tomorrow"),
             InlineKeyboardButton("Расписание на неделю", callback_data="menu_week"),
-        ]
+        ],
+        [
+            InlineKeyboardButton("Расписание на след. неделю", callback_data="menu_next_week")
+        ],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -65,6 +81,12 @@ def groups_keyboard(action: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+def back_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Назад", callback_data="menu_back")]
+    ])
+
+
 def _lookup_group_name(group_id: int) -> str | None:
     for name, gid in GROUPS.items():
         if gid == group_id:
@@ -72,10 +94,18 @@ def _lookup_group_name(group_id: int) -> str | None:
     return None
 
 
-def back_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Назад", callback_data="menu_back")]
-    ])
+# ─── УВЕДОМЛЕНИЕ АДМИНОВ ОБ ОШИБКАХ ──────────────────────────────────────────
+
+async def _notify_admins_error(app: Application, error: Exception, context_msg: str = "") -> None:
+    """Отправляет описание ошибки главному админу"""
+    try:
+        text = f"⚠️ Ошибка: {context_msg}\n\n<code>{escape(str(error))}</code>"
+        await app.bot.send_message(chat_id=MAIN_ADMIN_ID, text=text, parse_mode="HTML")
+    except Exception:
+        pass
+
+
+# ─── КОМАНДЫ ──────────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context
@@ -91,11 +121,9 @@ async def cmd_tomorrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context
     if update.message is None:
         return
-
     if len(GROUPS) == 1:
         await _send_tomorrow(update.message, DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
         return
-
     await update.message.reply_text("Выбери группу:", reply_markup=groups_keyboard("tomorrow"))
 
 
@@ -103,11 +131,9 @@ async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context
     if update.message is None:
         return
-
     if len(GROUPS) == 1:
         await _send_today(update.message, DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
         return
-
     await update.message.reply_text("Выбери группу:", reply_markup=groups_keyboard("today"))
 
 
@@ -115,15 +141,25 @@ async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context
     if update.message is None:
         return
-
     if len(GROUPS) == 1:
         await _send_week(update.message, DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
         return
-
     await update.message.reply_text("Выбери группу:", reply_markup=groups_keyboard("week"))
 
-async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE): 
+
+async def cmd_next_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context
+    if update.message is None:
+        return
+    if len(GROUPS) == 1:
+        await _send_next_week(update.message, DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
+        return
+    await update.message.reply_text("Выбери группу:", reply_markup=groups_keyboard("next_week"))
+
+
+# ─── CALLBACK КНОПОК ──────────────────────────────────────────────────────────
+
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query is None:
         return
@@ -135,17 +171,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Выбери, что хочешь узнать:", reply_markup=main_menu_keyboard())
         return
 
-    if data == "menu_tomorrow":
-        if len(GROUPS) == 1:
-            text = await _get_tomorrow_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
-            await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_keyboard())
-            return
-        await query.edit_message_text("Выбери группу:", reply_markup=groups_keyboard("tomorrow"))
-        return
-
     if data == "menu_today":
         if len(GROUPS) == 1:
-            text = await _get_today_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
+            text = await _get_today_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME, context.application)
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_keyboard())
+            return
+        await query.edit_message_text("Выбери группу:", reply_markup=groups_keyboard("today"))
+        return
+
+    if data == "menu_tomorrow":
+        if len(GROUPS) == 1:
+            text = await _get_tomorrow_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME, context.application)
             await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_keyboard())
             return
         await query.edit_message_text("Выбери группу:", reply_markup=groups_keyboard("tomorrow"))
@@ -153,13 +189,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "menu_week":
         if len(GROUPS) == 1:
-            text = await _get_week_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
+            text = await _get_week_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME, context.application)
             await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_keyboard())
             return
         await query.edit_message_text("Выбери группу:", reply_markup=groups_keyboard("week"))
         return
 
-    if data.startswith("tomorrow:") or data.startswith("week:"):
+    if data == "menu_next_week":
+        if len(GROUPS) == 1:
+            text = await _get_next_week_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME, context.application)
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_keyboard())
+            return
+        await query.edit_message_text("Выбери группу:", reply_markup=groups_keyboard("next_week"))
+        return
+
+    if ":" in data:
         action, _, raw_gid = data.partition(":")
         try:
             group_id = int(raw_gid)
@@ -173,64 +217,164 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if action == "tomorrow":
-            text = await _get_tomorrow_text(group_id, group_name)
+            text = await _get_tomorrow_text(group_id, group_name, context.application)
+        elif action == "today":
+            text = await _get_today_text(group_id, group_name, context.application)
+        elif action == "next_week":
+            text = await _get_next_week_text(group_id, group_name, context.application)
         else:
-            text = await _get_week_text(group_id, group_name)
-        await query.edit_message_text(text, parse_mode="HTML")
+            text = await _get_week_text(group_id, group_name, context.application)
+        await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_keyboard())
 
 
+# ─── ПОЛУЧЕНИЕ ТЕКСТА ─────────────────────────────────────────────────────────
 
-########### методы получения текста
-async def _get_tomorrow_text(group_id: int, group_name: str) -> str:
+async def _get_tomorrow_text(group_id: int, group_name: str, app: Application | None = None) -> str:
     try:
         del group_name
         return await format_tomorrow(group_id)
-    except Exception:
+    except Exception as e:
         logger.exception("Failed to get tomorrow schedule")
+        if app:
+            await _notify_admins_error(app, e, "расписание на завтра")
         return "Не удалось получить расписание. Попробуй позже."
 
 
-async def _get_week_text(group_id: int, group_name: str) -> str:
-    try:
-        return f"<b>Группа {escape(group_name)} - расписание на неделю</b>\n\n" + await format_week(group_id)
-    except Exception:
-        logger.exception("Failed to get week schedule")
-        return "Не удалось получить расписание. Попробуй позже."
-
-
-async def _get_today_text(group_id: int, group_name: str) -> str:
+async def _get_today_text(group_id: int, group_name: str, app: Application | None = None) -> str:
     try:
         del group_name
         return await format_today(group_id)
-    except Exception:
+    except Exception as e:
         logger.exception("Failed to get today schedule")
+        if app:
+            await _notify_admins_error(app, e, "расписание на сегодня")
         return "Не удалось получить расписание. Попробуй позже."
 
 
-####### методы отправки
+async def _get_week_text(group_id: int, group_name: str, app: Application | None = None) -> str:
+    try:
+        return f"<b>Группа {escape(group_name)} — расписание на неделю</b>\n\n" + await format_week(group_id)
+    except Exception as e:
+        logger.exception("Failed to get week schedule")
+        if app:
+            await _notify_admins_error(app, e, "расписание на неделю")
+        return "Не удалось получить расписание. Попробуй позже."
+
+
+async def _get_next_week_text(group_id: int, group_name: str, app: Application | None = None) -> str:
+    try:
+        return f"<b>Группа {escape(group_name)} — расписание на следующую неделю</b>\n\n" + await format_next_week(group_id)
+    except Exception as e:
+        logger.exception("Failed to get next week schedule")
+        if app:
+            await _notify_admins_error(app, e, "расписание на следующую неделю")
+        return "Не удалось получить расписание. Попробуй позже."
+
+
+# ─── ОТПРАВКА ─────────────────────────────────────────────────────────────────
+
 async def _send_tomorrow(message: Message, group_id: int, group_name: str):
     text = await _get_tomorrow_text(group_id, group_name)
     await message.reply_text(text, parse_mode="HTML")
 
+
 async def _send_today(message: Message, group_id: int, group_name: str):
     text = await _get_today_text(group_id, group_name)
     await message.reply_text(text, parse_mode="HTML")
+
 
 async def _send_week(message: Message, group_id: int, group_name: str):
     text = await _get_week_text(group_id, group_name)
     await message.reply_text(text, parse_mode="HTML")
 
 
+async def _send_next_week(message: Message, group_id: int, group_name: str):
+    text = await _get_next_week_text(group_id, group_name)
+    await message.reply_text(text, parse_mode="HTML")
+
+
+# ─── АВТОРАССЫЛКИ ─────────────────────────────────────────────────────────────
+
 async def auto_send(app: Application):
+    """Каждый день кроме субботы отправляет расписание на завтра в группу"""
     today = datetime.now(ZoneInfo(TIMEZONE))
     if today.weekday() == 5:
         logger.info("Saturday: autosend skipped")
         return
-
     logger.info("Autosend started")
-    text = await _get_tomorrow_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME)
-    await app.bot.send_message(chat_id=GROUP_CHAT_ID, text=text, parse_mode="HTML")
+    text = await _get_tomorrow_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME, app)
+    for chat_id in GROUP_CHAT_IDS:
+        await app.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
 
+
+async def auto_send_week(app: Application):
+    """Каждый понедельник отправляет расписание на неделю в группу и закрепляет"""
+    logger.info("Monday week autosend started")
+    try:
+        text = await _get_week_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME, app)
+        for chat_id in GROUP_CHAT_IDS:
+            message = await app.bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode="HTML"
+            )
+            await app.bot.pin_chat_message(
+                chat_id=chat_id,
+                message_id=message.message_id,
+                disable_notification=True,
+            )
+        logger.info("Week schedule sent and pinned")
+    except Exception as e:
+        logger.exception("Failed to send week schedule on Monday")
+        await _notify_admins_error(app, e, "авторассылка недельного расписания")
+
+
+async def check_next_week_schedule(app: Application):
+    """
+    Проверяет наличие расписания на следующую неделю (с четверга по воскресенье).
+    Запускается в 9, 12, 15 и 18 часов.
+    Если расписание появилось — отправляет его второму админу и прекращает проверки до след. недели.
+    """
+    global _next_week_notified
+
+    if _next_week_notified:
+        return
+
+    today = datetime.now(ZoneInfo(TIMEZONE))
+    # Проверяем только с четверга (3) по воскресенье (6)
+    if today.weekday() < 3:
+        return
+
+    logger.info("Checking next week schedule availability...")
+    available = await check_next_week_available(DEFAULT_GROUP_ID)
+
+    if not available:
+        logger.info("Next week schedule not available yet")
+        return
+
+    logger.info("Next week schedule found! Sending to admin...")
+    try:
+        text = await _get_next_week_text(DEFAULT_GROUP_ID, DEFAULT_GROUP_NAME, app)
+        await app.bot.send_message(
+            chat_id=SCHEDULE_NOTIFY_ADMIN_ID,
+            text=f"📅 Появилось расписание на следующую неделю!\n\n{text}",
+            parse_mode="HTML"
+        )
+        _next_week_notified = True
+        logger.info("Next week schedule sent to admin, checks disabled until next week")
+    except Exception as e:
+        logger.exception("Failed to send next week schedule to admin")
+        await _notify_admins_error(app, e, "отправка расписания на следующую неделю админу")
+
+
+async def reset_next_week_flag(_app: Application):
+    """Каждое воскресенье в 23:00 сбрасывает флаг — чтобы на следующей неделе проверки возобновились"""
+    global _next_week_notified
+    _next_week_notified = False
+    logger.info("Next week notification flag reset")
+
+
+# ─── KEEPALIVE ────────────────────────────────────────────────────────────────
 
 async def _healthcheck(_: web.Request) -> web.Response:
     return web.Response(text="Bot is alive!")
@@ -287,22 +431,26 @@ async def _post_shutdown(app: Application):
         logger.info("Keepalive web server stopped")
 
 
-### Пингуем апи, если не доступен оповещаем админов бота
+# ─── ПИНГ API ─────────────────────────────────────────────────────────────────
+
 async def ping_server(app: Application):
+    """Пингует API, при недоступности уведомляет всех админов"""
     try:
         resp = requests.get("https://api.thisishyum.ru/schedule_api/tyumen/colleges", timeout=5)
-        logger.info(f"Ping OK: {resp.status_code}")
+        logger.info("Ping OK: %s", resp.status_code)
     except Exception as e:
-        # Уведомляем всех админов
         for admin_id in ADMIN_IDS:
             try:
                 await app.bot.send_message(
                     chat_id=admin_id,
-                    text=f"⚠️ Сервер недоступен!\n\n`{e}`",
-                    parse_mode="Markdown"
+                    text=f"⚠️ Сервер недоступен!\n\n<code>{escape(str(e))}</code>",
+                    parse_mode="HTML"
                 )
             except Exception:
-                pass  # если не смогли уведомить — не страшно
+                pass
+
+
+# ─── ЗАПУСК ───────────────────────────────────────────────────────────────────
 
 def main():
     app = (
@@ -317,26 +465,51 @@ def main():
     app.add_handler(CommandHandler("tomorrow", cmd_tomorrow))
     app.add_handler(CommandHandler("week", cmd_week))
     app.add_handler(CommandHandler("today", cmd_today))
+    app.add_handler(CommandHandler("next_week", cmd_next_week))
     app.add_handler(CallbackQueryHandler(handle_callback))
 
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
+
+    # Ежедневная рассылка расписания на завтра
     scheduler.add_job(
         auto_send,
         CronTrigger(hour=SEND_HOUR, minute=SEND_MINUTE, timezone=TIMEZONE),
         args=[app],
     )
+
+    # Еженедельная рассылка расписания на неделю (понедельник)
     scheduler.add_job(
-    ping_server,
-    "interval",
-    seconds=10,
-    args=[app],
+        auto_send_week,
+        CronTrigger(day_of_week="mon", hour=SEND_HOUR, minute=SEND_MINUTE, timezone=TIMEZONE),
+        args=[app],
     )
+
+    # Проверка появления расписания на следующую неделю (чт–вс, 4 раза в день)
+    scheduler.add_job(
+        check_next_week_schedule,
+        CronTrigger(day_of_week="thu,fri,sat,sun", hour="9,12,15,18", minute=0, timezone=TIMEZONE),
+        args=[app],
+    )
+
+    # Сброс флага уведомления каждое воскресенье в 23:00
+    scheduler.add_job(
+        reset_next_week_flag,
+        CronTrigger(day_of_week="sun", hour=23, minute=0, timezone=TIMEZONE),
+        args=[app],
+    )
+
+    # Пинг API
+    scheduler.add_job(
+        ping_server,
+        "interval",
+        seconds=SELF_PING_INTERVAL_SECONDS,
+        args=[app],
+    )
+
     scheduler.start()
 
     logger.info("Bot started")
     app.run_polling()
-
-
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ def _get_str_env(name: str, default: str | None = None) -> str | None:
 def _get_groups() -> dict[str, int]:
     raw = os.getenv("GROUPS_JSON")
     if raw is None:
-        return {"IS-25-3S": 113}
+        return {"ИС-25-3С": 113}
 
     try:
         data = json.loads(raw)
@@ -54,17 +54,27 @@ def _get_groups() -> dict[str, int]:
 
     return normalized
 
+
 def _get_required_env_list(name: str) -> list[int]:
     value = os.getenv(name)
     if value is None or value.strip() == "":
         raise RuntimeError(f"Environment variable {name} is required")
     return [int(x.strip()) for x in value.split(",")]
 
-#############  Получаем из окружения сами перемннные
+
+#############  Получаем из окружения сами переменные
 
 ADMIN_IDS = _get_required_env_list("ADMIN_IDS")
+
+# Первый админ — получает все уведомления (ошибки API, недоступность сервера)
+# Второй админ — получает уведомления о появлении расписания на следующую неделю
+# Если админ один — оба уведомления идут ему
+MAIN_ADMIN_ID = ADMIN_IDS[0]
+SCHEDULE_NOTIFY_ADMIN_ID = ADMIN_IDS[1] if len(ADMIN_IDS) > 1 else ADMIN_IDS[0]
+
 BOT_TOKEN = _get_required_env("BOT_TOKEN")
 GROUP_CHAT_ID = _get_int_env("GROUP_CHAT_ID")
+GROUP_CHAT_IDS = [int(x.strip()) for x in os.environ["GROUP_CHAT_IDS"].split(",")]
 
 API_BASE_URL = os.getenv(
     "API_BASE_URL",
@@ -82,7 +92,7 @@ if DEFAULT_GROUP_NAME is None:
 
 SEND_HOUR = _get_int_env("SEND_HOUR", 20)
 SEND_MINUTE = _get_int_env("SEND_MINUTE", 0)
-TIMEZONE = os.getenv("TIMEZONE", "Europe/Moscow")
+TIMEZONE = os.getenv("TIMEZONE", "Asia/Yekaterinburg")
 APP_URL = _get_str_env("APP_URL")
 PORT = _get_int_env("PORT", 8080)
 SELF_PING_INTERVAL_SECONDS = _get_int_env("SELF_PING_INTERVAL_SECONDS", 600)
@@ -94,10 +104,6 @@ if not (0 <= SEND_MINUTE <= 59):
     raise RuntimeError("SEND_MINUTE must be between 0 and 59")
 if PORT <= 0:
     raise RuntimeError("PORT must be positive")
-# if SELF_PING_INTERVAL_SECONDS < 60:
-#     raise RuntimeError("SELF_PING_INTERVAL_SECONDS must be at least 60")
-# if SELF_PING_START_DELAY_SECONDS < 0:
-#     raise RuntimeError("SELF_PING_START_DELAY_SECONDS must be >= 0")
 
 WEEKDAY_RU = [
     "Понедельник",
@@ -108,3 +114,13 @@ WEEKDAY_RU = [
     "Суббота",
     "Воскресенье",
 ]
+
+# Расписание звонков: номер пары -> (начало, конец)
+BELL_SCHEDULE: dict[int, tuple[str, str]] = {
+    1: ("08:00", "09:30"),
+    2: ("09:40", "11:10"),
+    3: ("11:40", "13:10"),
+    4: ("13:20", "14:50"),
+    5: ("15:40", "17:10"),
+    6: ("17:20", "18:50"),
+}
