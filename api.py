@@ -121,7 +121,7 @@ def format_day(lessons: list[dict[str, Any]], dt: datetime, error: str | None = 
 async def format_today(group_id: int) -> str:
     tz = ZoneInfo(TIMEZONE)
     today = datetime.now(tz)
-    date_str = today.strftime("%Y-%m-%d")
+    date_str = today.strftime("%d-%m-%Y")
     data = await get_schedule(group_id, date_str)
     lessons = data[0].get("lessons", []) if data else []
     if not isinstance(lessons, list):
